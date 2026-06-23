@@ -4,7 +4,7 @@
   "pages_build_output_dir": ".",
   "kv_namespaces": [
     {
-      // Account A (kaleb@nooutco.me) namespace. Bind in: Pages → tools-nooutco-me → Settings → Functions → KV namespace bindings
+      // Account A namespace (nooutco.me zone account). Bind in: Pages → tools-nooutco-me → Settings → Functions → KV namespace bindings
       "binding": "SUGGEST_DUPES",
       "id": "770ceeccadb94d78b519e628509beed8"
     },
