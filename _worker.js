@@ -87,23 +87,43 @@ async function handleErrorReport(request, env) {
   const { message, tool, timestamp } = body;
   if (!message) return jsonRes(400, { error: "Missing message." });
 
-  if (!env.RESEND_API_KEY) return jsonRes(200, { ok: true });
+  const toolLabel = tool || "notes";
+  const timeLabel = timestamp || new Date().toISOString();
+  const titleSnippet = (message || "").slice(0, 60);
 
-  const toEmail = env.SUGGEST_TO_EMAIL || "feedback@nooutco.me";
-  const subject = `[Error] ${tool || "notes"} — ${(message || "").slice(0, 60)}`;
-  const text = [
-    `Tool: ${tool || "(unknown)"}`,
-    `Time: ${timestamp || new Date().toISOString()}`,
-    ``,
-    `Error:`,
-    message,
-  ].join("\n");
+  if (env.RESEND_API_KEY) {
+    const toEmail = env.SUGGEST_TO_EMAIL || "feedback@nooutco.me";
+    const subject = `[Error] ${toolLabel} — ${titleSnippet}`;
+    const text = [`Tool: ${toolLabel}`, `Time: ${timeLabel}`, ``, `Error:`, message].join("\n");
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` },
+      body: JSON.stringify({ from: "No Outcome ABA <noreply@nooutco.me>", to: [toEmail], subject, text }),
+    });
+  }
 
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` },
-    body: JSON.stringify({ from: "No Outcome ABA <noreply@nooutco.me>", to: [toEmail], subject, text }),
-  });
+  if (env.GITHUB_TOKEN) {
+    const issueTitle = `[Error] ${toolLabel} — ${titleSnippet}`;
+    const issueBody = [
+      `**Tool:** ${toolLabel}`,
+      `**Time:** ${timeLabel}`,
+      ``,
+      `**Error:**`,
+      "```",
+      message,
+      "```",
+    ].join("\n");
+    fetch("https://api.github.com/repos/mgfv2r2mpv-hash/tools-nooutco-me/issues", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+        "User-Agent": "tools-nooutco-me-worker",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({ title: issueTitle, body: issueBody, labels: ["bug"] }),
+    }).catch(() => {});
+  }
 
   return jsonRes(200, { ok: true });
 }

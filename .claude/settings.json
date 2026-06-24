@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "count=$(gh issue list --repo mgfv2r2mpv-hash/tools-nooutco-me --label bug --state open --json number 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0); if [ \"$count\" -gt 0 ]; then printf 'CRITICAL: %s unresolved Generate Note API error(s) in production.\\nRun: gh issue list --repo mgfv2r2mpv-hash/tools-nooutco-me --label bug --state open\\n' \"$count\"; echo '{\"continue\":true,\"suppressOutput\":false}'; else echo '{\"continue\":true,\"suppressOutput\":true}'; fi",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
