@@ -8,9 +8,10 @@ own documentation.*
 > ("SAssi Cal", already Capacitor-wrapped with a committed Xcode project). See
 > **`sassi-real-app-audit.md`** for the audit of the actual codebase — it supersedes §1–§3
 > and the Phase 0–2 roadmap below. §4 (persistence options), §5 (TestFlight requirements),
-> and the verified Apple facts remain the reference, with one correction: SAssi Cal uses
-> AES-GCM beyond HTTPS, so its export-compliance answer is "uses encryption → standard
-> exemption" (`ITSAppUsesNonExemptEncryption = true`), not `NO`.
+> and the verified Apple facts remain the reference, with one clarification: SAssi Cal uses
+> AES-GCM beyond HTTPS, but it is standard OS-provided (WebCrypto) cryptography — exempt —
+> so the correct plist value is `ITSAppUsesNonExemptEncryption = false` (the key asks
+> specifically about NON-exempt encryption). Fixed on the app's `dev` branch 2026-07-14.
 
 ---
 

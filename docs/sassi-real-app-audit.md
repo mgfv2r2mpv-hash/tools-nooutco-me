@@ -94,11 +94,12 @@ These stand between the current repo and a build on your phone via TestFlight in
 3. **Fix `UIRequiredDeviceCapabilities`** in `ios/App/App/Info.plist` — it contains an empty
    `<string/>` alongside `armv7`, an invalid value likely to fail upload validation. Best
    practice: remove the key entirely (modern default) or leave a single valid value.
-4. **Add the export-compliance key — and the answer is *not* NO.** The app uses AES-GCM via
-   WebCrypto for at-rest and file encryption, i.e. encryption beyond HTTPS. Correct posture:
-   `ITSAppUsesNonExemptEncryption = true` and claim the **standard-algorithms exemption**
-   (5D992 mass-market; no French declaration needed). Without the key, every build sits in
-   "Missing Compliance" until answered by hand.
+4. **Add the export-compliance key.** The app uses AES-GCM via WebCrypto for at-rest and
+   file encryption — encryption beyond HTTPS, but *standard, OS-provided algorithms*, which
+   are **exempt**. The plist key asks specifically about NON-exempt encryption, so the
+   correct value is `ITSAppUsesNonExemptEncryption = false` (in App Store Connect terms:
+   "uses encryption → qualifies for exemption"). Without the key, every build sits in
+   "Missing Compliance" until answered by hand. *[Fixed on `dev` 2026-07-14.]*
 5. **Version discipline:** `MARKETING_VERSION 1.0` / `CURRENT_PROJECT_VERSION 1` are
    hardcoded in the pbxproj and disconnected from package.json's 1.1.0. Bump
    `CURRENT_PROJECT_VERSION` on every upload (agvtool or a build script), or the second
