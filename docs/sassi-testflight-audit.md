@@ -4,6 +4,14 @@
 adversarially verified against current (2025–2026) sources; load-bearing claims cite Apple's
 own documentation.*
 
+> **Update, same day:** the real SAssi app was located in `mgfv2r2mpv-hash/aba-dashboard`
+> ("SAssi Cal", already Capacitor-wrapped with a committed Xcode project). See
+> **`sassi-real-app-audit.md`** for the audit of the actual codebase — it supersedes §1–§3
+> and the Phase 0–2 roadmap below. §4 (persistence options), §5 (TestFlight requirements),
+> and the verified Apple facts remain the reference, with one correction: SAssi Cal uses
+> AES-GCM beyond HTTPS, so its export-compliance answer is "uses encryption → standard
+> exemption" (`ITSAppUsesNonExemptEncryption = true`), not `NO`.
+
 ---
 
 ## 1. What SAssi is in this repo — the critical framing
