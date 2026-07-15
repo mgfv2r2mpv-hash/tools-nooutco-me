@@ -349,6 +349,11 @@
 
 </div>
 
+<!-- Turnstile + shared NotesGate login engine. Admin sign-in must go through the
+     same Super Bot Fight Mode-safe /api/login path the notes tools use, or the
+     request is challenged and never reaches the worker. -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="/assets/notes-gate.js"></script>
 <script>
   // Admin sign-in uses the server session token (same one the notes tools use).
   // Signing in as admin here also authorizes the 🛠️ API Passwords admin screen.
@@ -374,29 +379,30 @@
 
   function closeModal() { modalRoot.innerHTML = ""; }
 
+  // If the gear opened the login modal, re-open the signed-in panel on success so
+  // the 🛠️ appears immediately (rather than making the user click the gear again).
+  let pendingSignedInModal = false;
+
+  // Signed-in panel: shows the 🛠️ API Passwords link (admin only) and Log out.
+  // The password prompt itself is handled by NotesGate.openLogin() (Turnstile +
+  // Super Bot Fight Mode-safe /api/login), so this only renders the authed state.
   function renderModal() {
-    const authed = loggedIn();
+    if (!loggedIn()) {
+      if (window.NotesGate && NotesGate.openLogin) { pendingSignedInModal = true; NotesGate.openLogin(); }
+      else { alert("Login engine failed to load. Please refresh the page and try again."); }
+      return;
+    }
     const admin = isAdmin();
     modalRoot.innerHTML = `
       <div class="admin-modal-backdrop" id="adminBackdrop">
         <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle" style="position:relative;">
           <button type="button" id="adminX" aria-label="Close" style="position:absolute;top:8px;right:12px;border:none;background:none;font-size:24px;line-height:1;color:#7a8a68;cursor:pointer;">&times;</button>
-          <h2 id="adminModalTitle">${authed ? "Admin" : "Admin Sign-In"}</h2>
-          ${authed
-            ? `<div class="status">You are signed in${admin ? " as admin" : ""}.</div>
-               <div class="actions">
-                 ${admin ? `<a class="btn-primary" href="/admin/" aria-label="Open API Passwords admin" title="API Passwords admin" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:9px 13px;font-size:17px;line-height:1;border-radius:8px;">🛠️</a>` : ""}
-                 <button type="button" class="btn-secondary" id="adminSignOut">Log out</button>
-               </div>`
-            : `<p>Enter the admin password</p>
-               <form id="adminForm">
-                 <input type="password" id="adminPw" placeholder="••••••••" autocomplete="current-password" autofocus />
-                 <div class="error" id="adminError" style="display:none"></div>
-                 <div class="actions">
-                   <button type="submit" class="btn-primary">Unlock</button>
-                 </div>
-               </form>`
-          }
+          <h2 id="adminModalTitle">Admin</h2>
+          <div class="status">You are signed in${admin ? " as admin" : ""}.</div>
+          <div class="actions">
+            ${admin ? `<a class="btn-primary" href="/admin/" aria-label="Open API Passwords admin" title="API Passwords admin" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:9px 13px;font-size:17px;line-height:1;border-radius:8px;">🛠️</a>` : ""}
+            <button type="button" class="btn-secondary" id="adminSignOut">Log out</button>
+          </div>
         </div>
       </div>
     `;
@@ -405,39 +411,24 @@
       if (e.target.id === "adminBackdrop") closeModal();
     });
     document.getElementById("adminX").addEventListener("click", closeModal);
-
-    if (authed) {
-      document.getElementById("adminSignOut").addEventListener("click", () => {
-        localStorage.removeItem(TOKEN_KEY);
-        updateGearState();
-        closeModal();
-      });
-    } else {
-      const form = document.getElementById("adminForm");
-      const errorEl = document.getElementById("adminError");
-      form.addEventListener("submit", async e => {
-        e.preventDefault();
-        errorEl.style.display = "none";
-        try {
-          const res = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: document.getElementById("adminPw").value }),
-          });
-          const data = await res.json();
-          if (!res.ok || !data.token) throw new Error(data.error || "Incorrect password.");
-          localStorage.setItem(TOKEN_KEY, data.token);
-          updateGearState();
-          renderModal();
-        } catch (ex) {
-          errorEl.textContent = ex.message || "Incorrect password.";
-          errorEl.style.display = "block";
-        }
-      });
-    }
+    document.getElementById("adminSignOut").addEventListener("click", () => {
+      if (window.NotesGate && NotesGate.logout) NotesGate.logout();
+      else localStorage.removeItem(TOKEN_KEY);
+      updateGearState();
+      closeModal();
+    });
   }
 
   gearBtn.addEventListener("click", renderModal);
+
+  if (window.NotesGate && NotesGate.subscribe) {
+    NotesGate.subscribe(nowLoggedIn => {
+      updateGearState();
+      if (nowLoggedIn && pendingSignedInModal) { pendingSignedInModal = false; renderModal(); }
+      else if (!nowLoggedIn) { closeModal(); }
+    });
+  }
+
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 </script>
 <script src="/assets/error-button.js"></script>

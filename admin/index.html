@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin · No Outcome ABA</title>
   <link rel="icon" href="/logo-mark.svg" />
-  <!-- notes-gate.js needed for FIRST_NAMES/STOPWORDS in Algorithm Lab -->
+  <!-- Turnstile + notes-gate.js: shared login engine (bot check + Super Bot Fight
+       Mode-safe /api/login) and FIRST_NAMES/STOPWORDS for the Algorithm Lab. -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script src="/assets/notes-gate.js"></script>
   <script src="/assets/notes-scrub.js"></script>
   <style>
@@ -94,10 +96,11 @@
 
     <!-- Login gate -->
     <div id="loginCard" class="card hidden" style="max-width: 380px;">
-      <label for="pw">Admin password</label>
-      <input id="pw" type="password" autocomplete="current-password" placeholder="Admin password" />
-      <div id="loginErr" class="err"></div>
-      <button id="loginBtn" class="btn-primary" style="margin-top: 14px; width: 100%;">Log in</button>
+      <label>Admin sign-in</label>
+      <p style="font-size: 13px; color: #5a6b4a; margin: 6px 0 14px; line-height: 1.5;">
+        Sign in with the admin password to manage access passwords and term queues.</p>
+      <div id="loginErr" class="err" style="display: none;"></div>
+      <button id="loginBtn" class="btn-primary" style="width: 100%;">Log in</button>
     </div>
 
     <!-- Admin UI -->
@@ -278,6 +281,16 @@
       function isAdmin() { var p = payload(); return !!(p && p.role === "admin" && (!p.exp || p.exp * 1000 > Date.now())); }
       function authHeader() { return { "Content-Type": "application/json", "Authorization": "Bearer " + token() }; }
 
+      // Route every admin API call through the same Super Bot Fight Mode-safe ".js"
+      // suffix + cache-buster the notes tools use. Without it Cloudflare challenges
+      // /api/* and the fetch receives challenge HTML instead of JSON, so password
+      // creation and every other admin action silently fail. Prefer the shared
+      // NotesGate implementation; fall back to a local copy if it failed to load.
+      function apiUrl(path) {
+        if (window.NotesGate && NotesGate.apiUrl) return NotesGate.apiUrl(path);
+        return path + ".js" + (path.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now();
+      }
+
       var loginCard = document.getElementById("loginCard");
       var adminUI = document.getElementById("adminUI");
       var logoutBtn = document.getElementById("logout");
@@ -288,25 +301,39 @@
           load(); loadPii(); loadNonPii(); loadTermQueues(); loadAlgStatus();
         } else {
           loginCard.classList.remove("hidden"); adminUI.classList.add("hidden"); logoutBtn.classList.add("hidden");
-          document.getElementById("pw").focus();
         }
       }
 
+      // Login is delegated to the shared NotesGate engine (assets/notes-gate.js):
+      // it renders the Turnstile bot check and posts to /api/login with the ".js"
+      // suffix that bypasses Cloudflare Super Bot Fight Mode. A bespoke fetch here
+      // gets challenged and never reaches the worker, so always route through it.
       function doLogin() {
-        var pw = document.getElementById("pw");
         var err = document.getElementById("loginErr");
         err.style.display = "none";
-        fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw.value }) })
-          .then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.token) throw new Error(d.error || "Login failed."); return d; }); })
-          .then(function (d) {
-            if (d.role !== "admin") throw new Error("That password doesn't have admin access.");
-            localStorage.setItem(TOKEN_KEY, d.token); pw.value = ""; show();
-          })
-          .catch(function (ex) { err.textContent = ex.message; err.style.display = "block"; });
+        if (window.NotesGate && NotesGate.openLogin) NotesGate.openLogin();
+        else { err.textContent = "Login engine failed to load. Please refresh."; err.style.display = "block"; }
       }
       document.getElementById("loginBtn").addEventListener("click", doLogin);
-      document.getElementById("pw").addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
-      logoutBtn.addEventListener("click", function () { localStorage.removeItem(TOKEN_KEY); show(); });
+      logoutBtn.addEventListener("click", function () {
+        if (window.NotesGate && NotesGate.logout) NotesGate.logout();
+        else localStorage.removeItem(TOKEN_KEY);
+        show();
+      });
+
+      // Re-render whenever auth state changes — a successful NotesGate login (or a
+      // logout in another tab) fires this. A non-admin managed password can sign in
+      // but has no admin access, so surface that rather than silently staying gated.
+      if (window.NotesGate && NotesGate.subscribe) {
+        NotesGate.subscribe(function () {
+          if (NotesGate.isLoggedIn() && !isAdmin()) {
+            var err = document.getElementById("loginErr");
+            err.textContent = "That password doesn't have admin access.";
+            err.style.display = "block";
+          }
+          show();
+        });
+      }
 
       /* ── Tab switching ── */
       document.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -320,7 +347,7 @@
 
       /* ── Passwords tab ── */
       function api(method, body) {
-        return fetch("/api/admin/passwords", {
+        return fetch(apiUrl("/api/admin/passwords"), {
           method: method,
           headers: authHeader(),
           body: body ? JSON.stringify(body) : undefined,
@@ -385,7 +412,7 @@
 
       /* ── Non-PII Terms tab ── */
       function adminFetch(path, method, body) {
-        return fetch(path, {
+        return fetch(apiUrl(path), {
           method: method || "GET",
           headers: authHeader(),
           body: body ? JSON.stringify(body) : undefined,
